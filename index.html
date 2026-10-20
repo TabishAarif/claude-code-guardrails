@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guardrails Kit for Claude Code</title>
+<meta name="description" content="Safety hooks for Claude Code. Stops rm -rf on your home folder, force-push to main, dropped tables and leaked keys, and stays out of the way for everything else. Offline Python you can read.">
+<meta property="og:title" content="Guardrails Kit for Claude Code">
+<meta property="og:description" content="Stops the commands that cost you a day. Offline Python, one-command install, 188 tests.">
+<meta name="theme-color" content="#e6e9ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1e21" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e6e9ec; --surface:#f3f5f6; --line:#c9cfd4; --text:#1f2428; --dim:#545d65;
+  --asphalt:#20262a; --asphalt-2:#2a3136; --term-text:#dfe4e8; --term-dim:#8d979f;
+  --amber:#f2a900; --amber-ink:#7a5500; --stop:#c62f2a; --go:#1d7f4a; --ask:#b97800;
+  --focus:#1f63d6;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1a1e21; --surface:#22282c; --line:#353d43; --text:#e7eaec; --dim:#a3acb3;
+    --asphalt:#111518; --asphalt-2:#1b2125; --term-text:#e2e7ea; --term-dim:#8b959c;
+    --amber:#f5b81c; --amber-ink:#f5b81c; --stop:#ff6b62; --go:#4fc985; --ask:#f0b43a; --focus:#7aa7ff;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 17px/1.6 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+h1,h2,h3{font-family:"Barlow Condensed",Barlow,system-ui,sans-serif;font-weight:700;line-height:1.02;letter-spacing:-.005em;margin:0}
+h1{font-size:clamp(2.6rem,6.2vw,4.6rem)}
+h2{font-size:clamp(2rem,3.6vw,2.8rem);margin-bottom:.6rem}
+h3{font-size:1.45rem;font-weight:600}
+p{margin:0 0 1rem;max-width:62ch}
+code,kbd,.mono{font-family:ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;font-size:.92em}
+p code,li code,td code{background:var(--surface);border:1px solid var(--line);padding:.05em .35em;border-radius:4px}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+.brand{display:flex;align-items:center;gap:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.35rem;text-decoration:none}
+.brand svg{flex:none}
+.top nav{display:flex;gap:22px;font-weight:500}
+.top nav a{text-decoration:none;color:var(--dim)}
+.top nav a:hover{color:var(--text)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.02fr 1fr;gap:48px;align-items:center;padding:40px 0 28px}
+.lede{font-size:1.2rem;color:var(--dim);margin:1.1rem 0 1.6rem}
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:8px;font-weight:600;font-size:1.02rem;text-decoration:none;border:2px solid transparent;cursor:pointer;transition:transform .12s ease,background-color .12s ease}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--amber);color:#1f2428}
+.btn-primary:hover{background:#ffbb14}
+.btn-ghost{border-color:var(--line);color:var(--text);background:transparent}
+.btn-ghost:hover{border-color:var(--text)}
+.fine{font-size:.92rem;color:var(--dim);margin-top:14px}
+
+/* the guardrail: the one bold element */
+.rail{position:relative;height:46px;margin:30px 0 6px}
+.rail::before,.rail::after{content:"";position:absolute;left:0;right:0;height:9px;border-radius:3px;
+  background:linear-gradient(180deg,#f7f9fa 0%,#b9c1c7 45%,#8e989f 100%)}
+.rail::before{top:6px}.rail::after{top:21px}
+@media (prefers-color-scheme: dark){.rail::before,.rail::after{background:linear-gradient(180deg,#6d777e 0%,#4a535a 50%,#353c41 100%)}}
+.posts{position:absolute;inset:0;display:flex;justify-content:space-between;padding:0 2%}
+.posts span{width:12px;height:46px;background:var(--line);border-radius:2px;position:relative}
+.posts span::after{content:"";position:absolute;left:1px;top:9px;width:10px;height:10px;border-radius:2px;background:var(--amber);box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+
+/* terminal */
+.term{background:var(--asphalt);color:var(--term-text);border-radius:14px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(15,20,24,.55),0 0 0 1px rgba(255,255,255,.04) inset}
+.term-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--asphalt-2);font-size:.9rem;color:var(--term-dim)}
+.dots{display:flex;gap:7px}.dots i{width:11px;height:11px;border-radius:50%;background:#4a535a;display:block}
+.term-body{padding:18px 18px 14px;min-height:300px;display:flex;flex-direction:column}
+.term-q{font-size:.95rem;color:var(--term-dim);margin:0 0 10px}
+.prompt{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:0 12px}
+.prompt span{color:var(--amber);font-family:ui-monospace,Consolas,monospace}
+.prompt input{flex:1;min-width:0;background:transparent;border:0;color:var(--term-text);font:15px/1 ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;padding:13px 0}
+.prompt input:focus{outline:none}
+.prompt:focus-within{border-color:var(--amber)}
+.prompt button{background:transparent;border:0;color:var(--term-dim);font:600 .85rem Barlow,sans-serif;cursor:pointer;padding:8px 4px}
+.prompt button:hover{color:var(--term-text)}
+.result{margin-top:14px;border-left:4px solid var(--term-dim);padding:6px 0 6px 14px;min-height:118px}
+.result .verdict{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.7rem;line-height:1.1;margin:0 0 6px}
+.result pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13.5px/1.55 ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;color:var(--term-text)}
+.result .note{color:var(--term-dim);font-size:.88rem;margin:6px 0 0}
+.result.block{border-color:#ff6b62}.result.block .verdict{color:#ff7b72}
+.result.ask{border-color:#f0b43a}.result.ask .verdict{color:#f5c04f}
+.result.allow{border-color:#4fc985}.result.allow .verdict{color:#5fd795}
+.result.unknown .verdict{color:var(--term-text)}
+.result.hit{animation:hit .38s ease}
+@keyframes hit{0%{transform:translateX(0)}25%{transform:translateX(-5px)}55%{transform:translateX(3px)}100%{transform:translateX(0)}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:16px}
+.chip{font:13px/1 ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;color:var(--term-text);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:8px 12px;cursor:pointer;text-align:left}
+.chip:hover,.chip[aria-pressed="true"]{border-color:var(--amber);color:#fff}
+.chip b{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.term-foot{padding:10px 18px 14px;color:var(--term-dim);font-size:.84rem;border-top:1px solid rgba(255,255,255,.06)}
+
+/* sections */
+section{padding:72px 0 8px}
+.intro{color:var(--dim);font-size:1.1rem;margin-bottom:2rem}
+.lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line)}
+.lane{padding:22px 24px 10px 0}
+.lane+.lane{padding-left:24px;border-left:1px solid var(--line)}
+.lane h3{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.lane h3 i{width:14px;height:14px;border-radius:3px;display:inline-block}
+.lane ul{list-style:none;margin:0;padding:0}
+.lane li{padding:7px 0;border-bottom:1px dashed var(--line)}
+.lane li:last-child{border-bottom:0}
+.c-block{background:var(--stop)}.c-ask{background:var(--ask)}.c-go{background:var(--go)}
+
+table{width:100%;border-collapse:collapse;font-size:1rem}
+th,td{text-align:left;padding:13px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:"Barlow Condensed",sans-serif;font-size:1.2rem;font-weight:700}
+td:nth-child(2),th:nth-child(2){color:var(--dim)}
+td.yes{color:var(--go);font-weight:600}
+.table-scroll{overflow-x:auto}
+
+.prices{display:grid;grid-template-columns:1.15fr 1fr 1fr;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.price{padding:28px 26px 26px;display:flex;flex-direction:column}
+.price+.price{border-left:1px solid var(--line)}
+.price.lead{background:var(--bg);box-shadow:inset 0 5px 0 var(--amber)}
+.price .amt{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:3.4rem;line-height:1;margin:10px 0 4px}
+.price .who{color:var(--dim);margin:0 0 14px}
+.price ul{margin:0 0 22px;padding-left:18px;color:var(--dim)}
+.price .btn{margin-top:auto}
+.price:not(.lead) .btn{background:var(--text);color:var(--bg)}
+.price:not(.lead) .btn:hover{opacity:.9}
+.terms{color:var(--dim);font-size:.95rem;margin-top:14px}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.two h3{margin-bottom:8px}
+details{border-bottom:1px solid var(--line);padding:14px 0}
+summary{cursor:pointer;font-weight:600;font-size:1.08rem;list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-family:"Barlow Condensed",sans-serif;font-size:1.5rem;line-height:1;color:var(--dim)}
+details[open] summary::after{content:"\2212"}
+details p{margin:10px 0 0;color:var(--dim)}
+footer{margin-top:80px;padding:28px 0 40px;border-top:1px solid var(--line);color:var(--dim);font-size:.92rem}
+footer p{max-width:none}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;gap:30px;padding-top:16px}
+  .lanes{grid-template-columns:1fr}
+  .lane,.lane+.lane{padding:18px 0 6px;border-left:0}
+  .lane+.lane{border-top:1px solid var(--line)}
+  .prices{grid-template-columns:1fr}
+  .price+.price{border-left:0;border-top:1px solid var(--line)}
+  .two{grid-template-columns:1fr;gap:26px}
+  .top nav{display:none}
+  .term-body{min-height:0}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#" aria-label="Guardrails Kit home">
+      <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect x="0" y="4" width="30" height="4" rx="1.5" fill="currentColor"/><rect x="0" y="11" width="30" height="4" rx="1.5" fill="currentColor"/><rect x="3" y="0" width="4" height="22" rx="1" fill="#f2a900"/><rect x="23" y="0" width="4" height="22" rx="1" fill="#f2a900"/></svg>
+      Guardrails Kit
+    </a>
+    <nav aria-label="Page"><a href="#stops">What it stops</a><a href="#pricing">Pricing</a><a href="#trust">Before you trust it</a></nav>
+  </header>
+
+  <main>
+  <div class="hero">
+    <div>
+      <h1>Claude Code moves fast. This keeps it on the road.</h1>
+      <p class="lede">Safety hooks that stop the commands that cost you a day: <code>rm -rf</code> on your home folder, force-push to main, dropped tables, leaked keys. Everything else runs as normal.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://buy.polar.sh/polar_cl_afmq8FgzjPvCNaldmWfTJDDWqsbBNaUDR9yXY2SRgju">Buy the kit for $19</a>
+        <a class="btn btn-ghost" href="https://github.com/TabishAarif/claude-code-guardrails">Try the free version</a>
+      </div>
+      <p class="fine">One-time payment. Offline Python you can read. 14-day refund, no questions.</p>
+      <div class="rail" aria-hidden="true"><div class="posts"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+    </div>
+
+    <div class="term" role="region" aria-label="Interactive demo of the command guard">
+      <div class="term-head"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><span>your-project &mdash; Claude Code</span><span aria-hidden="true"></span></div>
+      <div class="term-body">
+        <p class="term-q" id="q">Pick a command Claude might run, or type one.</p>
+        <form class="prompt" id="f" autocomplete="off">
+          <span aria-hidden="true">$</span>
+          <label for="cmd" class="sr" style="position:absolute;left:-9999px">Command</label>
+          <input id="cmd" name="cmd" spellcheck="false" aria-describedby="q" placeholder="rm -rf ~">
+          <button type="submit">Run</button>
+        </form>
+        <div class="result" id="out" aria-live="polite"></div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="term-foot">Every reply here is the kit's real message, recorded from its actual script. Long messages are shortened.</div>
+    </div>
+  </div>
+
+  <section id="stops" aria-labelledby="stops-h">
+    <h2 id="stops-h">It stops the expensive accidents and leaves normal work alone</h2>
+    <p class="intro">A guard that blocks normal work gets switched off. So each rule is either a hard stop, a question for you, or out of the way.</p>
+    <div class="lanes">
+      <div class="lane"><h3><i class="c-block" aria-hidden="true"></i>Blocked</h3>
+        <ul><li><code>rm -rf</code> on <code>~</code>, <code>/</code> or the whole project</li><li>Force-push to main, master or production</li><li><code>DROP</code>, <code>TRUNCATE</code>, <code>DELETE</code> with no <code>WHERE</code></li><li>Committing a real API key</li><li>Editing <code>.env</code>, private keys, <code>.git</code> or the guards themselves</li><li>Fork bombs and disk wipes</li></ul></div>
+      <div class="lane"><h3><i class="c-ask" aria-hidden="true"></i>Asks you first</h3>
+        <ul><li><code>prisma migrate reset</code>, <code>supabase db reset</code></li><li><code>terraform destroy</code></li><li><code>git reset --hard</code></li><li>Reading <code>.env</code> into the conversation</li><li>Writing a real API key into a file</li></ul></div>
+      <div class="lane"><h3><i class="c-go" aria-hidden="true"></i>Allowed</h3>
+        <ul><li><code>rm -rf node_modules .next dist</code></li><li><code>git push</code> to a feature branch</li><li><code>--force-with-lease</code> on your own branch</li><li><code>prisma migrate dev</code></li><li><code>grep "DROP TABLE" schema.sql</code></li></ul></div>
+    </div>
+    <p class="terms">Each rule can be set to block, ask or off. A log-only dry-run mode shows what would have been stopped before you switch anything on.</p>
+  </section>
+
+  <section aria-labelledby="free-h">
+    <h2 id="free-h">Free version or full kit</h2>
+    <p class="intro">Start with the free hooks on GitHub. Buy the kit when you want the rest.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th scope="col">What you get</th><th scope="col">Free</th><th scope="col">Full kit</th></tr></thead>
+      <tbody>
+        <tr><td>Command guard</td><td>Core rules</td><td class="yes">Dozens of rules for databases, cloud CLIs, git and protected files</td></tr>
+        <tr><td>Secret scan on file writes and commits</td><td>Yes</td><td class="yes">Yes</td></tr>
+        <tr><td>File guard for <code>.env</code>, keys, <code>.git</code> and the guards</td><td>No</td><td class="yes">Yes</td></tr>
+        <tr><td>Test gate: Claude can't say "done" while tests fail</td><td>No</td><td class="yes">Yes, gives up after 3 tries</td></tr>
+        <tr><td>Your top rules re-sent after context compaction</td><td>No</td><td class="yes">Yes</td></tr>
+        <tr><td>Token savers: skips node_modules, build output, lock files</td><td>No</td><td class="yes">Yes</td></tr>
+        <tr><td><code>/handoff</code>, <code>/stuck</code>, <code>/review</code>, <code>/guardrails-status</code></td><td>No</td><td class="yes">Yes</td></tr>
+        <tr><td>CLAUDE.md templates</td><td>Next.js</td><td class="yes">Next.js and Python/FastAPI</td></tr>
+        <tr><td>Installer with real uninstall, doctor script, dry-run mode</td><td>No</td><td class="yes">Yes</td></tr>
+        <tr><td>Automated tests</td><td>55</td><td class="yes">188</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="pricing" aria-labelledby="price-h">
+    <h2 id="price-h">One payment. Same download in every licence.</h2>
+    <p class="intro">The licence decides who may use it. Prices in US dollars, paid through Polar.</p>
+    <div class="prices">
+      <div class="price lead"><h3>Single</h3><div class="amt">$19</div><p class="who">One developer</p>
+        <ul><li>Your own projects, personal or work</li><li>Any number of machines</li></ul>
+        <a class="btn btn-primary" href="https://buy.polar.sh/polar_cl_afmq8FgzjPvCNaldmWfTJDDWqsbBNaUDR9yXY2SRgju">Buy Single</a></div>
+      <div class="price"><h3>Team</h3><div class="amt">$79</div><p class="who">Up to 10 developers</p>
+        <ul><li>One organization's projects</li><li>Commit it so everyone gets the same guards</li></ul>
+        <a class="btn" href="https://buy.polar.sh/polar_cl_Obg2kowFR753cQIvWcR3IwqHrF74pSVvN60st3QJWb8">Buy Team</a></div>
+      <div class="price"><h3>Client-work</h3><div class="amt">$149</div><p class="who">Freelancers and agencies, up to 10 developers</p>
+        <ul><li>Install it in projects you build for clients</li><li>Clients keep what is installed</li></ul>
+        <a class="btn" href="https://buy.polar.sh/polar_cl_ZFuKEOzUbSxZHLEfsSbCKFG4VqkuiHrYZSFDD3PgWdT">Buy Client-work</a></div>
+    </div>
+    <p class="terms">Full refund within 14 days of purchase, no questions asked. Every 1.x update is free. Questions: <a href="mailto:tabishaarif25@gmail.com">tabishaarif25@gmail.com</a></p>
+  </section>
+
+  <section id="trust" aria-labelledby="trust-h">
+    <h2 id="trust-h">Before you trust it</h2>
+    <div class="two">
+      <div><h3>What it is</h3>
+        <p>Plain Python 3.8+, standard library only. No network calls, no telemetry, no account. You can read every line in one sitting before you install it.</p>
+        <p>The installer backs up your <code>settings.json</code> first, and <code>install.py --uninstall</code> puts it back.</p></div>
+      <div><h3>What it is not</h3>
+        <p>It reads command text, so it is a seatbelt, not a vault. An unusual command can get past it. Keep backups, and keep production credentials out of your project folder.</p>
+        <p>Tested on Linux with Python 3.11 to 3.13 and live inside Claude Code 2.1.304. The test suite passes on one Windows PC with Python 3.12.6. It has not yet been run live inside Claude Code on Windows, and macOS is untested.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">Questions</h2>
+    <details><summary>Will it slow Claude down?</summary><p>Each check is a small local script that runs before a tool call. In normal use you won't notice it.</p></details>
+    <details><summary>Will it block my normal work?</summary><p>Everyday commands like <code>rm -rf node_modules</code>, pushes to a feature branch and <code>prisma migrate dev</code> are allowed. If a rule gets in your way, set it to ask or off in <code>config.json</code>.</p></details>
+    <details><summary>What do I need?</summary><p>Claude Code and Python 3.8 or newer. On Windows, Git for Windows, which Claude Code uses to run hooks.</p></details>
+    <details><summary>How do I install it?</summary><p>Unzip, open a terminal in your project and run <code>python path/to/install.py</code>. Add <code>--preview</code> first to see what it will change. It takes about two minutes.</p></details>
+    <details><summary>Is this made by Anthropic?</summary><p>No. It is an independent product and is not affiliated with or endorsed by Anthropic.</p></details>
+  </section>
+  </main>
+
+  <footer>
+    <p>Guardrails Kit for Claude Code. Independent product, not affiliated with Anthropic. "Claude" and "Claude Code" belong to their owners.</p>
+    <p>Seller: Fahmee Naaz, Jamshedpur, India. Payments handled by Polar. Free version: <a href="https://github.com/TabishAarif/claude-code-guardrails">github.com/TabishAarif/claude-code-guardrails</a></p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  // Every message below was recorded from the kit's real hooks (guard_bash.py / guard_files.py), 20 Oct 2026.
+  var TAIL = "This action was stopped before it ran. Do not try to work around it with a different command.";
+  var D = [
+    {c:"rm -rf ~", v:"block", m:"BLOCKED by Claude Code Guardrails.\n- [catastrophic] recursive delete of '~'\n\n" + TAIL},
+    {c:"git push --force origin main", v:"block", m:"BLOCKED by Claude Code Guardrails.\n- [git_force_push] force-push to a protected branch (main) rewrites shared history\n\n" + TAIL},
+    {c:"psql \"$DATABASE_URL\" -c \"DROP TABLE users;\"", v:"block", m:"BLOCKED by Claude Code Guardrails.\n- [database_destroy] DROP removes the table/database and all its data\n\n" + TAIL},
+    {c:"git commit -m 'add payments'", v:"block", note:"Here src/pay.ts holds a live Stripe key.", m:"BLOCKED by Claude Code Guardrails.\n- [secret_commit] secret found in the commit:\n    Stripe live secret key at src/pay.ts:1 (sk_liv...7H8)\n  Remove it, put it in .env (ignored by git), and rotate the key if it was ever pushed."},
+    {c:"Edit .env", v:"block", note:"Claude using its file-edit tool, not a shell command.", m:"BLOCKED by Claude Code Guardrails.\n- [protected_files] '.env' is a protected file. Claude may not change it; the user can edit it by hand."},
+    {c:"prisma migrate reset", v:"ask", m:"Guardrails: please confirm.\n- [database_reset] prisma migrate reset drops the database"},
+    {c:"terraform destroy", v:"ask", m:"Guardrails: please confirm.\n- [infra_destroy] terraform destroy deletes real infrastructure"},
+    {c:"git reset --hard", v:"ask", m:"Guardrails: please confirm.\n- [git_discard] git reset --hard throws away uncommitted work"},
+    {c:"cat .env", v:"ask", m:"Guardrails: please confirm.\n- [secret_read] reading '.env' would put your secrets into the AI conversation"},
+    {c:"Write src/pay.ts", v:"ask", note:"Claude writing a live Stripe key into a file with its write tool.", m:"Guardrails: please confirm.\n- [secret_write] writing a real-looking secret into pay.ts:\n    Stripe live secret key at pay.ts:1 (sk_liv...7H8)\n  Put secrets in .env and read them with process.env / os.environ instead."},
+    {c:"rm -rf node_modules .next", v:"allow", m:"Runs as normal. Build folders are not your project."},
+    {c:"git push origin feature/login", v:"allow", m:"Runs as normal. A push to your own branch is everyday work."},
+    {c:"git push --force-with-lease origin feature/login", v:"allow", m:"Runs as normal. A lease-protected force-push to your own branch is safe."},
+    {c:"grep \"DROP TABLE\" schema.sql", v:"allow", m:"Runs as normal. Searching for dangerous text is not running it."}
+  ];
+  var LABEL = {block:"Blocked", ask:"Asks you first", allow:"Allowed"};
+  var COLOR = {block:"#ff6b62", ask:"#f0b43a", allow:"#4fc985"};
+  var CHIPS = [0,1,2,3,5,8,10,11];
+  var out = document.getElementById("out"), input = document.getElementById("cmd"), chips = document.getElementById("chips");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var timer = null;
+  function norm(s){return s.trim().replace(/\s+/g," ").replace(/[“”]/g,'"').replace(/[‘’]/g,"'").toLowerCase();}
+  function esc(s){return s.replace(/[&<>]/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[ch];});}
+  function show(item, raw){
+    out.className = "result";
+    void out.offsetWidth;
+    if(!item){
+      out.className = "result unknown";
+      out.innerHTML = '<p class="verdict">Not in this demo</p><pre>' + esc(raw || "") + '</pre><p class="note">This page only has the commands below. The real guard checks every command Claude runs. To test your own, use the free version on GitHub.</p>';
+      return;
+    }
+    out.className = "result " + item.v + (item.v === "block" && !reduce ? " hit" : "");
+    out.innerHTML = '<p class="verdict">' + LABEL[item.v] + '</p><pre>' + esc(item.m) + '</pre>' + (item.note ? '<p class="note">' + esc(item.note) + '</p>' : "");
+    Array.prototype.forEach.call(chips.children, function(b){ b.setAttribute("aria-pressed", b.dataset.c === item.c ? "true" : "false"); });
+  }
+  function find(raw){ var n = norm(raw); for(var i=0;i<D.length;i++){ if(norm(D[i].c) === n) return D[i]; } return null; }
+  function run(item){
+    clearInterval(timer);
+    if(reduce){ input.value = item.c; show(item); return; }
+    input.value = ""; var i = 0;
+    timer = setInterval(function(){ i += 2; input.value = item.c.slice(0, i); if(i >= item.c.length){ clearInterval(timer); show(item); } }, 16);
+  }
+  CHIPS.forEach(function(idx){
+    var item = D[idx], b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.c = item.c; b.setAttribute("aria-pressed","false");
+    b.innerHTML = '<b style="background:' + COLOR[item.v] + '" aria-hidden="true"></b>' + esc(item.c);
+    b.addEventListener("click", function(){ run(item); });
+    chips.appendChild(b);
+  });
+  document.getElementById("f").addEventListener("submit", function(e){ e.preventDefault(); clearInterval(timer); var raw = input.value; if(!raw.trim()) return; show(find(raw), raw); });
+  // one orchestrated moment on load
+  setTimeout(function(){ run(D[0]); }, reduce ? 0 : 500);
+})();
+</script>
+</body>
+</html>
